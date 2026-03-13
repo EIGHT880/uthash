@@ -1,41 +1,16 @@
-name: build # This name shows up in badge.svg
+# sofia
+Created with CodeSandbox
+# Download and install nvm:
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
 
-on:
-  push: # any branch
-  pull_request:
-    branches: [ "master" ]
+# in lieu of restarting the shell
+\. "$HOME/.nvm/nvm.sh"
 
-jobs:
-  build-gcc:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-    - uses: actions/checkout@v3
-    - run: make -C tests EXTRA_CFLAGS="-W -Wall -Wextra -Wswitch-default"
-    - run: make -C tests clean ; make -C tests pedantic
-    - run: make -C tests clean ; make -C tests pedantic EXTRA_CFLAGS=-DNO_DECLTYPE
-    - run: make -C tests clean ; make -C tests cplusplus
-    - run: make -C tests clean ; make -C tests cplusplus EXTRA_CFLAGS=-DNO_DECLTYPE
-  build-clang:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      CC: clang
-      CXX: clang++
-    steps:
-    - uses: actions/checkout@v3
-    - run: make -C tests EXTRA_CFLAGS="-W -Wall -Wextra -Wswitch-default"
-    - run: make -C tests clean ; make -C tests pedantic
-    - run: make -C tests clean ; make -C tests pedantic EXTRA_CFLAGS=-DNO_DECLTYPE
-    - run: make -C tests clean ; make -C tests cplusplus
-    - run: make -C tests clean ; make -C tests cplusplus EXTRA_CFLAGS=-DNO_DECLTYPE
-  build-asciidoc:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - run: sudo apt-get update && sudo apt-get install asciidoc -y
-    - run: make -C doc
+# Download and install Node.js:
+nvm install 24
+
+# Verify the Node.js version:
+node -v # Should print "v24.14.0".
+
+# Verify npm version:
+npm -v # Should print "11.9.0".
