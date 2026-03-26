@@ -11,3 +11,64 @@ make clean tests_only EXTRA_CFLAGS='-DHASH_FUNCTION=HASH_JEN'; proceed
 make clean tests_only EXTRA_CFLAGS='-DHASH_FUNCTION=HASH_OAT'; proceed
 make clean tests_only EXTRA_CFLAGS='-DHASH_FUNCTION=HASH_SAX'; proceed
 make clean tests_only EXTRA_CFLAGS='-DHASH_FUNCTION=HASH_SFH'; proceed
+import google.generativeai as genai
+import os
+import csv
+from datetime import datetime
+
+# Set your API Key
+# Replace "YOUR_API_KEY" with your actual Gemini API key
+os.environ["GEMINI_API_KEY"] = "YOUR_API_KEY"
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+# Initializing the Lingo Brain (Gemini 1.5 Flash)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+def log_guardian_insight(status_message):
+    """
+    Records the system status and insights into a CSV for prosperity tracking.
+    """
+    file_path = "guardian_logs.csv"
+    file_exists = os.path.isfile(file_path)
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        with open(file_path, mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Write header if the file is new
+            if not file_exists:
+                writer.writerow(["Timestamp", "Location", "Protocol_Insight"])
+            
+            writer.writerow([timestamp, "Hemet Flagship", status_message])
+        print(f"Insight successfully archived to {file_path}")
+    except Exception as e:
+        print(f"Logging Error: {e}")
+
+def heartbeat_check():
+    """
+    Confirming Aigis Safety Protocol for the Hemet Flagship.
+    """
+    prompt = "System Check: Activate Lingo Brain. Confirm Aigis Safety Protocol status for Hemet Flagship."
+    
+    print("-" * 30)
+    print("INITIALIZING AIGIS CONNECTION...")
+    
+    try:
+        response = model.generate_content(prompt)
+        insight = response.text.strip()
+        
+        print("LINGO CENTRAL BRAIN RESPONSE:")
+        print(insight)
+        print("-" * 30)
+        
+        # Archive the result
+        log_guardian_insight(insight)
+        
+    except Exception as e:
+        error_msg = f"Connection Failed: {e}"
+        print(error_msg)
+        log_guardian_insight(error_msg)
+
+if __name__ == "__main__":
+    heartbeat_check()
