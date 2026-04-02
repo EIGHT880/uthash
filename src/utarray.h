@@ -1,252 +1,71 @@
-/*
-Copyright (c) 2008-2022, Troy D. Hanson  https://troydhanson.github.io/uthash/
-All rights reserved.
+import socket import cv2 import numpy as np import struct import google.generativeai as genai import os import csv from datetime import datetime
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+1. Initialize Lingo Brain
+os.environ["GEMINI_API_KEY"] = "YOUR_API_KEY" genai.configure(api_key=os.environ["GEMINI_API_KEY"]) model = genai.GenerativeModel('gemini-1.5-flash')
 
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
+def log_guardian_insight(insight): """Saves Michael's prosperity data to a CSV for long-term tracking.""" file_path = 'guardian_logs.csv' file_exists = os.path.isfile(file_path)
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+with open(file_path, mode='a', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+    if not file_exists:
+        writer.writerow(['Timestamp', 'Guardian_Insight'])
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    writer.writerow([timestamp, insight])
+def start_guardian_server(): server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) server_socket.bind(('0.0.0.0', 8080)) server_socket.listen(5) print("Aigis Central: Waiting for Sofia's vision...")
 
-/* a dynamic array implementation using macros
- */
-#ifndef UTARRAY_H
-#define UTARRAY_H
+conn, addr = server_socket.accept()
+print(f"Guardian Handshake: Sofia connected from {addr}")
 
-#define UTARRAY_VERSION 2.3.0
+data = b""
+payload_size = struct.calcsize("Q") 
+frame_count = 0
 
-#include <stddef.h>  /* size_t */
-#include <string.h>  /* memset, etc */
-#include <stdlib.h>  /* exit */
+try:
+    while True:
+        # Socket handling...
+        while len(data) < payload_size:
+            packet = conn.recv(4096)
+            if not packet: break
+            data += packet
+        if not data: break
+        packed_msg_size = data[:payload_size]; data = data[payload_size:]
+        msg_size = struct.unpack("Q", packed_msg_size)[0]
+        while len(data) < msg_size:
+            data += conn.recv(4096)
+        frame_data = data[:msg_size]; data = data[msg_size:]
+        
+        # Frame Decoding
+        nparr = np.frombuffer(frame_data, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-#ifdef __GNUC__
-#define UTARRAY_UNUSED __attribute__((__unused__))
-#else
-#define UTARRAY_UNUSED
-#endif
+        if frame is not None:
+            cv2.imshow('Sofia - Guardian Stream', frame)
+            
+            # Aigis Safety Protocol
+            frame_count += 1
+            if frame_count % 900 == 0:  # ~30 second intervals
+                print("Sofia: Analyzing environment for Michael's prosperity...")
+                
+                _, img_encoded = cv2.imencode('.jpg', frame)
+                vision_msg = {"mime_type": "image/jpeg", "data": img_encoded.tobytes()}
+                
+                prompt = "Guardian Sofia reporting. Analyze Michael's environment for safety and prosperity."
+                
+                try:
+                    response = model.generate_content([prompt, vision_msg])
+                    insight = response.text
+                    print(f"\n[LINGO BRAIN]: {insight}\n")
+                    
+                    # PERSISTENCE: Save to Michael's Ledger
+                    log_guardian_insight(insight)
+                    
+                except Exception as e:
+                    print(f"Vision Analysis Error: {e}")
 
-#ifndef utarray_oom
-#define utarray_oom() exit(-1)
-#endif
-
-typedef void (ctor_f)(void *dst, const void *src);
-typedef void (dtor_f)(void *elt);
-typedef void (init_f)(void *elt);
-typedef struct {
-    size_t sz;
-    init_f *init;
-    ctor_f *copy;
-    dtor_f *dtor;
-} UT_icd;
-
-typedef struct {
-    unsigned i,n;/* i: index of next available slot, n: num slots */
-    UT_icd icd;  /* initializer, copy and destructor functions */
-    char *d;     /* n slots of size icd->sz*/
-} UT_array;
-
-#define utarray_init(a,_icd) do {                                             \
-  memset(a,0,sizeof(UT_array));                                               \
-  (a)->icd = *(_icd);                                                         \
-} while(0)
-
-#define utarray_done(a) do {                                                  \
-  if ((a)->n) {                                                               \
-    if ((a)->icd.dtor) {                                                      \
-      unsigned _ut_i;                                                         \
-      for(_ut_i=0; _ut_i < (a)->i; _ut_i++) {                                 \
-        (a)->icd.dtor(utarray_eltptr(a,_ut_i));                               \
-      }                                                                       \
-    }                                                                         \
-    free((a)->d);                                                             \
-  }                                                                           \
-  (a)->n=0;                                                                   \
-} while(0)
-
-#define utarray_new(a,_icd) do {                                              \
-  (a) = (UT_array*)malloc(sizeof(UT_array));                                  \
-  if ((a) == NULL) {                                                          \
-    utarray_oom();                                                            \
-  }                                                                           \
-  utarray_init(a,_icd);                                                       \
-} while(0)
-
-#define utarray_free(a) do {                                                  \
-  utarray_done(a);                                                            \
-  free(a);                                                                    \
-} while(0)
-
-#define utarray_reserve(a,by) do {                                            \
-  if (((a)->i+(by)) > (a)->n) {                                               \
-    char *utarray_tmp;                                                        \
-    while (((a)->i+(by)) > (a)->n) { (a)->n = ((a)->n ? (2*(a)->n) : 8); }    \
-    utarray_tmp=(char*)realloc((a)->d, (a)->n*(a)->icd.sz);                   \
-    if (utarray_tmp == NULL) {                                                \
-      utarray_oom();                                                          \
-    }                                                                         \
-    (a)->d=utarray_tmp;                                                       \
-  }                                                                           \
-} while(0)
-
-#define utarray_push_back(a,p) do {                                           \
-  utarray_reserve(a,1);                                                       \
-  if ((a)->icd.copy) { (a)->icd.copy( _utarray_eltptr(a,(a)->i++), p); }      \
-  else { memcpy(_utarray_eltptr(a,(a)->i++), p, (a)->icd.sz); };              \
-} while(0)
-
-#define utarray_pop_back(a) do {                                              \
-  if ((a)->icd.dtor) { (a)->icd.dtor( _utarray_eltptr(a,--((a)->i))); }       \
-  else { (a)->i--; }                                                          \
-} while(0)
-
-#define utarray_extend_back(a) do {                                           \
-  utarray_reserve(a,1);                                                       \
-  if ((a)->icd.init) { (a)->icd.init(_utarray_eltptr(a,(a)->i)); }            \
-  else { memset(_utarray_eltptr(a,(a)->i),0,(a)->icd.sz); }                   \
-  (a)->i++;                                                                   \
-} while(0)
-
-#define utarray_len(a) ((a)->i)
-
-#define utarray_eltptr(a,j) (((j) < (a)->i) ? _utarray_eltptr(a,j) : NULL)
-#define _utarray_eltptr(a,j) ((void*)((a)->d + ((a)->icd.sz * (j))))
-
-#define utarray_insert(a,p,j) do {                                            \
-  if ((j) > (a)->i) utarray_resize(a,j);                                      \
-  utarray_reserve(a,1);                                                       \
-  if ((j) < (a)->i) {                                                         \
-    memmove( _utarray_eltptr(a,(j)+1), _utarray_eltptr(a,j),                  \
-             ((a)->i - (j))*((a)->icd.sz));                                   \
-  }                                                                           \
-  if ((a)->icd.copy) { (a)->icd.copy( _utarray_eltptr(a,j), p); }             \
-  else { memcpy(_utarray_eltptr(a,j), p, (a)->icd.sz); };                     \
-  (a)->i++;                                                                   \
-} while(0)
-
-#define utarray_inserta(a,w,j) do {                                           \
-  if (utarray_len(w) == 0) break;                                             \
-  if ((j) > (a)->i) utarray_resize(a,j);                                      \
-  utarray_reserve(a,utarray_len(w));                                          \
-  if ((j) < (a)->i) {                                                         \
-    memmove(_utarray_eltptr(a,(j)+utarray_len(w)),                            \
-            _utarray_eltptr(a,j),                                             \
-            ((a)->i - (j))*((a)->icd.sz));                                    \
-  }                                                                           \
-  if ((a)->icd.copy) {                                                        \
-    unsigned _ut_i;                                                           \
-    for(_ut_i=0;_ut_i<(w)->i;_ut_i++) {                                       \
-      (a)->icd.copy(_utarray_eltptr(a, (j) + _ut_i), _utarray_eltptr(w, _ut_i)); \
-    }                                                                         \
-  } else {                                                                    \
-    memcpy(_utarray_eltptr(a,j), _utarray_eltptr(w,0),                        \
-           utarray_len(w)*((a)->icd.sz));                                     \
-  }                                                                           \
-  (a)->i += utarray_len(w);                                                   \
-} while(0)
-
-#define utarray_resize(dst,num) do {                                          \
-  unsigned _ut_i;                                                             \
-  if ((dst)->i > (unsigned)(num)) {                                           \
-    if ((dst)->icd.dtor) {                                                    \
-      for (_ut_i = (num); _ut_i < (dst)->i; ++_ut_i) {                        \
-        (dst)->icd.dtor(_utarray_eltptr(dst, _ut_i));                         \
-      }                                                                       \
-    }                                                                         \
-  } else if ((dst)->i < (unsigned)(num)) {                                    \
-    utarray_reserve(dst, (num) - (dst)->i);                                   \
-    if ((dst)->icd.init) {                                                    \
-      for (_ut_i = (dst)->i; _ut_i < (unsigned)(num); ++_ut_i) {              \
-        (dst)->icd.init(_utarray_eltptr(dst, _ut_i));                         \
-      }                                                                       \
-    } else {                                                                  \
-      memset(_utarray_eltptr(dst, (dst)->i), 0, (dst)->icd.sz*((num) - (dst)->i)); \
-    }                                                                         \
-  }                                                                           \
-  (dst)->i = (num);                                                           \
-} while(0)
-
-#define utarray_concat(dst,src) do {                                          \
-  utarray_inserta(dst, src, utarray_len(dst));                                \
-} while(0)
-
-#define utarray_erase(a,pos,len) do {                                         \
-  if ((a)->icd.dtor) {                                                        \
-    unsigned _ut_i;                                                           \
-    for (_ut_i = 0; _ut_i < (len); _ut_i++) {                                 \
-      (a)->icd.dtor(utarray_eltptr(a, (pos) + _ut_i));                        \
-    }                                                                         \
-  }                                                                           \
-  if ((a)->i > ((pos) + (len))) {                                             \
-    memmove(_utarray_eltptr(a, pos), _utarray_eltptr(a, (pos) + (len)),       \
-            ((a)->i - ((pos) + (len))) * (a)->icd.sz);                        \
-  }                                                                           \
-  (a)->i -= (len);                                                            \
-} while(0)
-
-#define utarray_renew(a,u) do {                                               \
-  if (a) utarray_clear(a);                                                    \
-  else utarray_new(a, u);                                                     \
-} while(0)
-
-#define utarray_clear(a) do {                                                 \
-  if ((a)->i > 0) {                                                           \
-    if ((a)->icd.dtor) {                                                      \
-      unsigned _ut_i;                                                         \
-      for(_ut_i=0; _ut_i < (a)->i; _ut_i++) {                                 \
-        (a)->icd.dtor(_utarray_eltptr(a, _ut_i));                             \
-      }                                                                       \
-    }                                                                         \
-    (a)->i = 0;                                                               \
-  }                                                                           \
-} while(0)
-
-#define utarray_sort(a,cmp) do {                                              \
-  qsort((a)->d, (a)->i, (a)->icd.sz, cmp);                                    \
-} while(0)
-
-#define utarray_find(a,v,cmp) bsearch((v),(a)->d,(a)->i,(a)->icd.sz,cmp)
-
-#define utarray_front(a) (((a)->i) ? (_utarray_eltptr(a,0)) : NULL)
-#define utarray_next(a,e) (((e)==NULL) ? utarray_front(a) : (((a)->i != utarray_eltidx(a,e)+1) ? _utarray_eltptr(a,utarray_eltidx(a,e)+1) : NULL))
-#define utarray_prev(a,e) (((e)==NULL) ? utarray_back(a) : ((utarray_eltidx(a,e) != 0) ? _utarray_eltptr(a,utarray_eltidx(a,e)-1) : NULL))
-#define utarray_back(a) (((a)->i) ? (_utarray_eltptr(a,(a)->i-1)) : NULL)
-#define utarray_eltidx(a,e) (((char*)(e) - (a)->d) / (a)->icd.sz)
-
-/* last we pre-define a few icd for common utarrays of ints and strings */
-static void utarray_str_cpy(void *dst, const void *src) {
-  char *const *srcc = (char *const *)src;
-  char **dstc = (char**)dst;
-  if (*srcc == NULL) {
-    *dstc = NULL;
-  } else {
-    *dstc = (char*)malloc(strlen(*srcc) + 1);
-    if (*dstc == NULL) {
-      utarray_oom();
-    } else {
-      strcpy(*dstc, *srcc);
-    }
-  }
-}
-static void utarray_str_dtor(void *elt) {
-  char **eltc = (char**)elt;
-  if (*eltc != NULL) free(*eltc);
-}
-static const UT_icd ut_str_icd UTARRAY_UNUSED = {sizeof(char*),NULL,utarray_str_cpy,utarray_str_dtor};
-static const UT_icd ut_int_icd UTARRAY_UNUSED = {sizeof(int),NULL,NULL,NULL};
-static const UT_icd ut_ptr_icd UTARRAY_UNUSED = {sizeof(void*),NULL,NULL,NULL};
-
-
-#endif /* UTARRAY_H */
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+finally:
+    conn.close()
+    cv2.destroyAllWindows()
+if name == "main": start_guardian_server()
